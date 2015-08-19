@@ -38,7 +38,7 @@ class FreshDeskObjects(object):
         return self.client.req(
             requests.delete, self.api_endpoint(id), self.wrapper_name)
 
-    def get(self, id):
+    def get(self, id=None, args=None):
         return self.client.req(
             requests.get, self.api_endpoint(id), self.wrapper_name)
 
@@ -160,6 +160,7 @@ class FreshDeskClient(object):
         # Resources types
         self.customers = FreshDeskCustomers(self)
         self.contacts = FreshDeskContacts(self)
+        self.tickets = FreshDeskTickets(self)
 
     def req(self, func, path, resource_type, params={}, **kwargs):
         abs_url = urlparse.urljoin(self.url, path)
@@ -186,7 +187,11 @@ class FreshDeskClient(object):
                 # Either we get a list or a single object
                 json_obj = resp.json()
                 if isinstance(json_obj, (list, tuple)):
-                    return [i[resource_type] for i in json_obj]
+                    try:
+                        return [i[resource_type] for i in json_obj]
+                    # Tickets are not wrapped in a dic like others objects
+                    except KeyError:
+                        return json_obj
                 else:
                     return json_obj[resource_type]
         else:
@@ -212,3 +217,19 @@ class FreshDeskSolutionArticle(FreshDeskObjects):
 
     def create(self, id, **kwargs):
         return self.client.req(requests.post, self.api_endpoint(id), self.wrapper_name, **kwargs)
+
+class FreshDeskTickets(FreshDeskObjects):
+    api_name = 'ticket'
+    wrapper_name = 'helpdesk_ticket'
+
+    def api_endpoint(self, id=None, args=None):
+        if id:
+            return '/helpdesk/{}s/{}.json'.format(self.api_name, id)
+        else:
+            if args:
+                # Add search params in the end of the URL
+                text_args = self.convert_args_from_dic(args)
+                return '/helpdesk/{}s.json{}'.format(self.api_name, text_args)
+            else:
+                return '/helpdesk/{}s.json'.format(self.api_name)
+
